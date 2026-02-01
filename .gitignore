@@ -1,25 +1,26 @@
 # Environment
 .env
 .env.local
+.env.save
 *.env
 
-# Cloned service repos (actual code)
+# Service repositories (cloned separately)
 amakaflow-ui/
-workout-ingestor-api/
+chat-api/
 mapper-api/
-strava-sync-api/
 calendar-api/
+workout-ingestor-api/
+
+# Other project folders (not part of core monorepo)
+strava-sync-api/
 garmin-sync-api/
 garmin-usb-fit-api/
+garmin-exercise-data/
+amakaflow-fitfiletool/
+amakaflow-db/
 
-# Symlinks to services
-ui
-workout-ingestor-api
-mapper-api
-strava-sync-api
-calendar-api
-garmin-sync-api
-garmin-usb-fit-api
+# Supabase local (if created)
+supabase/
 
 # Python
 __pycache__/
