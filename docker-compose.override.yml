@@ -1,0 +1,30 @@
+# Development overrides - automatically loaded with docker-compose.yml
+# Enables hot reload via volume mounts
+
+services:
+  ui:
+    volumes:
+      - ./amakaflow-ui:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+  chat:
+    volumes:
+      - ./chat-api:/app
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8005 --reload
+
+  mapper:
+    volumes:
+      - ./mapper-api:/app
+      - ./amakaflow-fitfiletool:/amakaflow-fitfiletool:ro
+    command: uvicorn backend.app:app --host 0.0.0.0 --port 8001 --reload
+
+  calendar:
+    volumes:
+      - ./calendar-api:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+
+  workout-ingestor:
+    volumes:
+      - ./workout-ingestor-api:/app
+    command: uvicorn workout_ingestor_api.main:app --host 0.0.0.0 --port 8004 --reload

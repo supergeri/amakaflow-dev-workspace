@@ -1,16 +1,13 @@
-version: '3.8'
-
 services:
-  # UI - React frontend
+  # =============================================================================
+  # FRONTEND
+  # =============================================================================
   ui:
     build:
-      context: ./ui
+      context: ./amakaflow-ui
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - ./ui:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
@@ -18,37 +15,71 @@ services:
       - VITE_SUPABASE_URL=${SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - VITE_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
+      - VITE_MAPPER_API_URL=http://localhost:8001
+      - VITE_INGESTOR_API_URL=http://localhost:8004
+      - VITE_CALENDAR_API_URL=http://localhost:8003
+      - VITE_CHAT_API_URL=http://localhost:8005
+      - VITE_CHAT_ENABLED=true
     networks:
       - amakaflow
     depends_on:
-      - workout-ingestor
-      - mapper
+      chat:
+        condition: service_healthy
+      mapper:
+        condition: service_started
+      calendar:
+        condition: service_started
+      workout-ingestor:
+        condition: service_started
 
-  # Workout Ingestor
-  workout-ingestor:
+  # =============================================================================
+  # CORE APIs
+  # =============================================================================
+
+  # Chat API - AI conversation service
+  chat:
     build:
-      context: ./workout-ingestor-api
+      context: ./chat-api
       dockerfile: Dockerfile
     ports:
-      - "8004:8004"
-    volumes:
-      - ./workout-ingestor-api:/app
+      - "8005:8005"
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=development
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - CLERK_DOMAIN=${CLERK_DOMAIN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HELICONE_API_KEY=${HELICONE_API_KEY}
+      - HELICONE_ENABLED=${HELICONE_ENABLED:-false}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-claude-sonnet-4-20250514}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - TTS_ENABLED=${TTS_ENABLED:-false}
+      - TTS_DEFAULT_VOICE_ID=${TTS_DEFAULT_VOICE_ID}
+      - TTS_DAILY_CHAR_LIMIT=${TTS_DAILY_CHAR_LIMIT:-50000}
+      - RATE_LIMIT_FREE=${RATE_LIMIT_FREE:-50}
+      - RATE_LIMIT_PAID=${RATE_LIMIT_PAID:-500}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     networks:
       - amakaflow
 
-  # Mapper
+  # Mapper API - Exercise mapping service
   mapper:
     build:
       context: ./mapper-api
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
-    volumes:
-      - ./mapper-api:/app
     env_file:
       - .env
     environment:
@@ -56,89 +87,79 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - INGESTOR_URL=http://workout-ingestor:8004
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     networks:
       - amakaflow
 
-  # Strava Sync
-  strava:
-    build:
-      context: ./strava-sync-api
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./strava-sync-api:/app
-    env_file:
-      - .env
-    environment:
-      - PYTHONUNBUFFERED=1
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-    networks:
-      - amakaflow
-
-  # Calendar API
+  # Calendar API - Calendar integration service
   calendar:
     build:
       context: ./calendar-api
       dockerfile: Dockerfile
     ports:
       - "8003:8003"
-    volumes:
-      - ./calendar-api:/app
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     networks:
       - amakaflow
 
-  # Garmin Sync (optional)
-  garmin-sync:
+  # Workout Ingestor API - Video/OCR ingestion service
+  workout-ingestor:
     build:
-      context: ./garmin-sync-api
+      context: ./workout-ingestor-api
       dockerfile: Dockerfile
     ports:
-      - "8002:8002"
-    volumes:
-      - ./garmin-sync-api:/app
+      - "8004:8004"
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - GARMIN_UNOFFICIAL_SYNC_ENABLED=${GARMIN_UNOFFICIAL_SYNC_ENABLED:-false}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - HELICONE_API_KEY=${HELICONE_API_KEY}
+      - HELICONE_ENABLED=${HELICONE_ENABLED:-false}
+      - YT_TRANSCRIPT_API_TOKEN=${YT_TRANSCRIPT_API_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
     networks:
       - amakaflow
-    profiles:
-      - full
-
-  # Garmin USB FIT (optional)
-  garmin-usb-fit:
-    build:
-      context: ./garmin-usb-fit-api
-      dockerfile: Dockerfile
-    ports:
-      - "8095:8095"
-    volumes:
-      - ./garmin-usb-fit-api:/app
-    env_file:
-      - .env
-    environment:
-      - PYTHONUNBUFFERED=1
-    networks:
-      - amakaflow
-    profiles:
-      - full
 
 networks:
   amakaflow:
     driver: bridge
 
-# Usage:
-# Start core services: docker-compose up -d
-# Start all services: docker-compose --profile full up -d
-# View logs: docker-compose logs -f
-# Stop: docker-compose down
+# =============================================================================
+# USAGE
+# =============================================================================
+# Start all services:     docker compose up -d
+# Start with logs:        docker compose up
+# View logs:              docker compose logs -f [service]
+# Stop all:               docker compose down
+# Rebuild:                docker compose build --no-cache
+# =============================================================================
